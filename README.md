@@ -2,6 +2,8 @@
 
 A lightweight, framework-agnostic PHP library for resolving calendar availability, busy periods and bookable time slots.
 
+[![Tests](https://github.com/erilshackle/calendary-php/actions/workflows/tests.yml/badge.svg)](https://github.com/erilshackle/calendary-php/actions/workflows/tests.yml)
+
 Calendary lets you define **when a resource can be available**, add periods when it is unavailable, and query the resulting calendar without coupling your scheduling logic to a database, framework or external calendar provider.
 
 ```php
