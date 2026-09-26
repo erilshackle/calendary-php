@@ -9,17 +9,46 @@ use DateTimeImmutable;
 use Eril\Calendary\Result\Day;
 use Eril\Calendary\Result\Slot;
 
+/**
+ * Resolves calendar definitions into concrete days and slots.
+ *
+ * Resolution precedence:
+ *
+ * 1. holidays and days off close the date;
+ * 2. date-specific availability overrides weekly availability;
+ * 3. weekly availability is used as fallback;
+ * 4. candidate slots are generated;
+ * 5. busy periods are applied to generated slots.
+ *
+ * @internal
+ */
 final class Resolver
 {
+    /**
+     * Create a resolver for a calendar.
+     *
+     * @param Calendary $calendar Calendar definition to resolve.
+     */
     public function __construct(
         private Calendary $calendar
     ) {}
 
+    /**
+     * Resolve a calendar date into a Day.
+     *
+     * @param DateTimeImmutable $date Date to resolve.
+     *
+     * @return Day
+     */
     public function day(DateTimeImmutable $date): Day
     {
         $key = $date->format('Y-m-d');
 
-        if (in_array($key, $this->calendar->holidayDates(), true)) {
+        if (in_array(
+            $key,
+            $this->calendar->holidayDates(),
+            true
+        )) {
             return new Day(
                 $date,
                 [],
@@ -27,7 +56,11 @@ final class Resolver
             );
         }
 
-        if (in_array($key, $this->calendar->daysOffDates(), true)) {
+        if (in_array(
+            $key,
+            $this->calendar->daysOffDates(),
+            true
+        )) {
             return new Day(
                 $date,
                 [],
@@ -35,9 +68,9 @@ final class Resolver
             );
         }
 
-        $periods = $this->availabilityFor($date);
+        $availability = $this->availabilityFor($date);
 
-        if ($periods === []) {
+        if ($availability === []) {
             return new Day(
                 $date,
                 [],
@@ -48,24 +81,35 @@ final class Resolver
         $busy = $this->busyFor($date);
         $slots = [];
 
-        foreach ($periods as [$start, $end]) {
-            foreach ($this->generateSlots($date, $start, $end) as $period) {
-                $status = Slot::AVAILABLE;
+        foreach ($availability as $period) {
+            foreach (
+                $this->generateSlots(
+                    $date,
+                    $period[0],
+                    $period[1]
+                ) as $slot
+            ) {
+                $isBusy = false;
 
                 foreach ($busy as $busyPeriod) {
-                    if ($period->overlaps($busyPeriod)) {
-                        $status = Slot::BUSY;
+                    if ($slot->overlaps($busyPeriod)) {
+                        $isBusy = true;
                         break;
                     }
                 }
 
-                $slots[] = new Slot($period, $status);
+                $slots[] = new Slot(
+                    $slot,
+                    $isBusy
+                        ? Slot::BUSY
+                        : Slot::AVAILABLE
+                );
             }
         }
 
         $available = array_filter(
             $slots,
-            fn (Slot $slot) => $slot->available()
+            fn(Slot $slot) => $slot->available()
         );
 
         return new Day(
@@ -77,11 +121,21 @@ final class Resolver
         );
     }
 
-    private function availabilityFor(DateTimeImmutable $date): array
-    {
-        $key = $date->format('Y-m-d');
-
+    /**
+     * Get the availability periods applicable to a date.
+     *
+     * Date-specific availability takes precedence over recurring
+     * weekly availability, including explicitly empty definitions.
+     *
+     * @param DateTimeImmutable $date Date being resolved.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    private function availabilityFor(
+        DateTimeImmutable $date
+    ): array {
         $dates = $this->calendar->dates();
+        $key = $date->format('Y-m-d');
 
         if (array_key_exists($key, $dates)) {
             return $dates[$key];
@@ -93,7 +147,16 @@ final class Resolver
     }
 
     /**
-     * @return Period[]
+     * Generate candidate slots within an availability period.
+     *
+     * A slot is generated only when its complete duration fits inside
+     * the availability period.
+     *
+     * @param DateTimeImmutable $date Date being resolved.
+     * @param string $start Availability start time in HH:MM format.
+     * @param string $end Availability end time in HH:MM format.
+     *
+     * @return list<Period>
      */
     private function generateSlots(
         DateTimeImmutable $date,
@@ -102,7 +165,7 @@ final class Resolver
     ): array {
         $timezone = $this->calendar->getTimezone();
 
-        $from = new DateTimeImmutable(
+        $cursor = new DateTimeImmutable(
             $date->format('Y-m-d') . ' ' . $start,
             $timezone
         );
@@ -122,7 +185,7 @@ final class Resolver
 
         $slots = [];
 
-        for ($cursor = $from; $cursor < $until; $cursor = $cursor->add($interval)) {
+        while ($cursor < $until) {
             $slotEnd = $cursor->add($duration);
 
             if ($slotEnd > $until) {
@@ -133,25 +196,34 @@ final class Resolver
                 $cursor,
                 $slotEnd
             );
+
+            $cursor = $cursor->add($interval);
         }
 
         return $slots;
     }
 
     /**
-     * @return Period[]
+     * Get busy periods that may affect the given date.
+     *
+     * @param DateTimeImmutable $date Date being resolved.
+     *
+     * @return list<Period>
      */
-    private function busyFor(DateTimeImmutable $date): array
-    {
+    private function busyFor(
+        DateTimeImmutable $date
+    ): array {
         $periods = [];
+
+        $day = new Period(
+            $date->setTime(0, 0),
+            $date->setTime(0, 0)->modify('+1 day')
+        );
 
         foreach ($this->calendar->busyPeriods() as $busy) {
             $period = $this->normalizeBusy($busy);
 
-            if (
-                $period->start()->format('Y-m-d') === $date->format('Y-m-d')
-                || $period->end()->format('Y-m-d') === $date->format('Y-m-d')
-            ) {
+            if ($period->overlaps($day)) {
                 $periods[] = $period;
             }
         }
@@ -159,70 +231,59 @@ final class Resolver
         return $periods;
     }
 
+    /**
+     * Normalize a busy definition into a concrete Period.
+     *
+     * Supported definitions:
+     *
+     * - [date] blocks the complete date;
+     * - [datetime] uses the configured slot duration;
+     * - [start, end] defines an explicit period.
+     *
+     * @param array{0: string, 1?: string} $busy Busy definition.
+     *
+     * @return Period
+     */
     private function normalizeBusy(array $busy): Period
     {
-        if ($busy === []) {
-            throw new \InvalidArgumentException(
-                'Busy period cannot be empty.'
-            );
-        }
-
         $timezone = $this->calendar->getTimezone();
 
-        $start = (string) $busy[0];
-
-        /*
-         * Date only:
-         *
-         * ['2026-10-07']
-         */
-        if (
-            count($busy) === 1
-            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)
-        ) {
-            $from = new DateTimeImmutable(
-                $start . ' 00:00:00',
-                $timezone
-            );
-
-            return new Period(
-                $from,
-                $from->modify('+1 day')
-            );
-        }
-
-        $from = new DateTimeImmutable(
-            $start,
+        $start = new DateTimeImmutable(
+            $busy[0],
             $timezone
         );
 
-        /*
-         * Start only:
-         *
-         * ['2026-10-05 10:00']
-         */
-        if (count($busy) === 1) {
+        if (isset($busy[1])) {
             return new Period(
-                $from,
-                $from->modify(
-                    '+' . $this->calendar->getDuration() . ' minutes'
+                $start,
+                new DateTimeImmutable(
+                    $busy[1],
+                    $timezone
                 )
             );
         }
 
-        /*
-         * Explicit interval:
-         *
-         * ['2026-10-05 10:00', '2026-10-05 11:30']
-         */
-        $end = new DateTimeImmutable(
-            (string) $busy[1],
-            $timezone
-        );
+        if (
+            preg_match(
+                '/^\d{4}-\d{2}-\d{2}$/',
+                $busy[0]
+            )
+        ) {
+            return new Period(
+                $start->setTime(0, 0),
+                $start->setTime(0, 0)->modify('+1 day')
+            );
+        }
 
         return new Period(
-            $from,
-            $end
+            $start,
+            $start->add(
+                new DateInterval(
+                    'PT'
+                        . $this->calendar->getDuration()
+                        . 'M'
+                )
+            )
         );
     }
 }
