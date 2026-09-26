@@ -1,0 +1,32 @@
+site_name: Calendary
+site_description: Calendar availability, busy periods and bookable time slots for PHP.
+site_author: Eril TS Carvalho
+
+repo_name: eril/calendary
+repo_url: https://github.com/eril/calendary
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Availability: availability.md
+  - Busy Time: busy-time.md
+  - Querying: querying.md
+  - Results: results.md
+  - API Reference: api.md
