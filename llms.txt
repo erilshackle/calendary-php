@@ -1,0 +1,46 @@
+# Calendary
+
+> Calendary is a lightweight, framework-agnostic PHP library for resolving calendar availability, busy periods and bookable time slots.
+
+Calendary requires PHP 8.2+.
+
+Important concepts:
+
+- Availability defines when a resource can be available.
+- `weekly` uses ISO weekdays: 1 = Monday through 7 = Sunday.
+- Date-specific availability in `dates` completely overrides weekly availability for that date.
+- An empty date-specific definition explicitly closes the date.
+- `duration()` defines slot length.
+- `interval()` defines the distance between candidate slot start times and defaults to the duration.
+- `busy()` represents occupied periods.
+- `daysOff()` and `holidays()` explicitly block dates.
+- Calendar resolution is timezone-aware.
+- Date ranges are inclusive.
+- Time periods use half-open `[start, end)` semantics.
+- Calendary is independent of databases, ORMs and frameworks. Applications must normalize their data before passing it to `Calendary::load()`.
+
+Day statuses:
+
+- `open`: at least one slot is available.
+- `closed`: no availability schedule applies.
+- `full`: availability exists, but all slots are busy.
+- `day_off`: explicitly marked as a day off.
+- `holiday`: explicitly marked as a holiday.
+
+Slot statuses:
+
+- `available`
+- `busy`
+
+## Documentation
+
+- [Getting Started](https://github.com/erilshackle/calendary-php/blob/main/docs/getting-started.md): Installation and basic usage.
+- [Availability](https://github.com/erilshackle/calendary-php/blob/main/docs/availability.md): Weekly schedules, date overrides, duration, interval, days off and holidays.
+- [Busy Time](https://github.com/erilshackle/calendary-php/blob/main/docs/busy-time.md): Busy dates, periods and overlap semantics.
+- [Querying](https://github.com/erilshackle/calendary-php/blob/main/docs/querying.md): `on()`, `weekOf()`, `between()`, filters and field selection.
+- [Results](https://github.com/erilshackle/calendary-php/blob/main/docs/results.md): Day, Slot and Range result objects.
+- [API Reference](https://github.com/erilshackle/calendary-php/blob/main/docs/api.md): Public API reference.
+
+## Source
+
+- [README](https://github.com/erilshackle/calendary-php/blob/main/README.md): Project overview and quick start.
