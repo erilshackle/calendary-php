@@ -590,4 +590,15 @@ The requested boundaries remain October 1 and October 31, while `days()` contain
 The same calendar rules used to display availability can also be used to validate a requested booking time:
 
 ```php
+$day = $calendar
+    ->query()
+    ->on('2026-10-05');
+
+if (!$day->isAvailable('10:00')) {
+    throw new DomainException(
+        'The requested time is not available.'
+    );
+}
 ```
+
+This helps keep availability display and booking validation based on the same scheduling rules.

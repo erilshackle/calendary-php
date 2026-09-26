@@ -132,10 +132,11 @@ final class Calendary
      *
      * @param string|DateTimeZone $timezone Valid timezone identifier
      *        or DateTimeZone instance.
-     *
-     * @return $this
+     * @return self
      *
      * @throws \Exception If an invalid timezone identifier is provided.
+     * 
+     * @link https://www.php.net/manual/en/timezones.php
      */
     public function timezone(string|DateTimeZone $timezone): self
     {
@@ -151,7 +152,7 @@ final class Calendary
      *
      * @param int $minutes Duration in minutes. Must be greater than zero.
      *
-     * @return $this
+     * @return self
      *
      * @throws InvalidArgumentException If the duration is not greater than zero.
      */
@@ -178,7 +179,7 @@ final class Calendary
      *
      * @param int $minutes Interval in minutes. Must be greater than zero.
      *
-     * @return $this
+     * @return self
      *
      * @throws InvalidArgumentException If the interval is not greater than zero.
      */
@@ -217,7 +218,7 @@ final class Calendary
      * @param array<int, array{0: string, 1?: string}>|array{0: string, 1?: string} $busy
      *        Busy date or date-time definitions.
      *
-     * @return $this
+     * @return self
      */
     public function busy(array $busy): self
     {
@@ -240,7 +241,7 @@ final class Calendary
      *
      * @param list<string|DateTimeInterface> $dates Dates to mark as days off.
      *
-     * @return $this
+     * @return self
      */
     public function daysOff(array $dates): self
     {
@@ -261,7 +262,7 @@ final class Calendary
      *
      * @param list<string|DateTimeInterface> $dates Dates to mark as holidays.
      *
-     * @return $this
+     * @return self
      */
     public function holidays(array $dates): self
     {
