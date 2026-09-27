@@ -1,28 +1,53 @@
 docs_dir: docs
+
 site_name: Calendary PHP
 site_description: Calendar availability, busy periods and bookable time slots for PHP.
 site_author: Eril TS Carvalho
+site_url: https://erilshackle.github.io/calendary-php/
 
-repo_name: eril/calendary
-repo_url: https://github.com/eril/calendary
-# remote_branch: main
+repo_name: erilshackle/calendary-php
+repo_url: https://github.com/erilshackle/calendary-php
+edit_uri: edit/main/docs/
 
 theme:
   name: material
   language: en
+
   features:
     - navigation.sections
     - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
+
+    - search.suggest
+    - search.highlight
+
     - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+
+  - git-revision-date-localized:
+      type: date
+      enable_creation_date: true
 
 markdown_extensions:
   - admonition
   - attr_list
   - tables
+
+  - pymdownx.details
+
   - pymdownx.highlight:
       anchor_linenums: true
+
   - pymdownx.inlinehilite
   - pymdownx.superfences
+
+  - pymdownx.tabbed:
+      alternate_style: true
 
 nav:
   - Home: index.md
