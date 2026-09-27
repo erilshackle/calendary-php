@@ -216,6 +216,46 @@ A slot is generated only when its complete duration fits inside the availability
 
 When no interval is explicitly configured, the duration is used as the interval.
 
+### Break Time
+
+Use `breakTime()` when additional unavailable time is required after a booking:
+
+```php
+$calendar
+    ->duration(60)
+    ->interval(15)
+    ->breakTime(15);
+```
+
+Each setting has a different responsibility:
+
+* `duration(60)` — each slot lasts 60 minutes.
+* `interval(15)` — candidate slots start every 15 minutes.
+* `breakTime(15)` — adds 15 minutes of unavailable time after an implicitly timed booking.
+
+For example:
+
+```php
+$calendar->busy([
+    ['2026-10-05 09:00'],
+]);
+```
+
+With a 60-minute duration and a 15-minute break time, the booking lasts from `09:00` to `10:00`, while the calendar remains busy until `10:15`.
+
+Break time does not change the duration of the slot itself.
+
+It is only applied when Calendary infers the end of a busy period. Explicit periods are respected exactly as provided:
+
+```php
+$calendar->busy([
+    ['2026-10-05 09:00', '2026-10-05 10:00'],
+]);
+```
+
+The period above remains `09:00–10:00`, even when `breakTime()` is configured. Whole-day busy entries are also not extended.
+
+
 ## Busy Time
 
 Busy periods represent time that would otherwise be available but is already occupied.

@@ -10,8 +10,11 @@ Important concepts:
 - `weekly` uses ISO weekdays: 1 = Monday through 7 = Sunday.
 - Date-specific availability in `dates` completely overrides weekly availability for that date.
 - An empty date-specific definition explicitly closes the date.
-- `duration()` defines slot length.
-- `interval()` defines the distance between candidate slot start times and defaults to the duration.
+- `duration()` defines the duration of each generated slot.
+- `interval()` defines the spacing between candidate slot start times and defaults to the configured duration.
+- `breakTime()` defines additional unavailable time after an implicitly timed busy entry and defaults to `0`.
+    Break time is applied only when Calendary infers the end of a busy period.
+    Explicit `[start, end]` busy periods and whole-day busy entries are never extended by `breakTime()`.
 - `busy()` represents occupied periods.
 - `daysOff()` and `holidays()` explicitly block dates.
 - Calendar resolution is timezone-aware.

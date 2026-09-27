@@ -36,6 +36,15 @@ $calendar->interval(int $minutes): Calendary
 
 Sets the interval between candidate slot starts.
 
+### `breakTime()`
+
+```php
+$calendar->breakTime(15);
+```
+
+Sets the additional unavailable time after a busy entry whose end is inferred from the configured duration.
+The default value is `0`.
+
 ### `busy()`
 
 ```php

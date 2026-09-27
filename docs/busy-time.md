@@ -64,6 +64,60 @@ $calendar->busy([
 ]);
 ```
 
+## Break Time
+
+`breakTime()` defines additional unavailable time after a booking whose end is inferred by Calendary.
+
+```php id="8x8rpb"
+$calendar
+    ->duration(60)
+    ->breakTime(15)
+    ->busy([
+        ['2026-10-05 09:00'],
+    ]);
+```
+
+The booking itself still lasts 60 minutes:
+
+```text id="p5v1rp"
+09:00 ─────── booking ─────── 10:00
+```
+
+but the calendar remains unavailable for another 15 minutes:
+
+```text id="g6hmhn"
+09:00 ─────── booking ─────── 10:00 ─ break ─ 10:15
+```
+
+The effective busy period is therefore `[09:00, 10:15)`.
+
+Break time does not change the duration of generated slots.
+
+### Explicit Busy Periods
+
+Break time is only applied when Calendary needs to infer the end of a busy period.
+
+When both the start and end are explicitly provided, the period is respected exactly as given:
+
+```php id="eflgx7"
+$calendar
+    ->breakTime(15)
+    ->busy([
+        ['2026-10-05 09:00', '2026-10-05 10:30'],
+    ]);
+```
+
+The busy period remains `[09:00, 10:30)`. It is not extended to `10:45`.
+
+Whole-day busy entries are also not extended.
+
+| Busy definition | Resolution                     |
+| --------------- | ------------------------------ |
+| `[date]`        | Blocks the whole day           |
+| `[datetime]`    | Uses `duration + breakTime`    |
+| `[start, end]`  | Uses the exact explicit period |
+
+
 ## Period Overlap
 
 Calendary uses half-open intervals:
