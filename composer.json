@@ -3,6 +3,14 @@
     "description": "A lightweight, framework-agnostic PHP library for calendar availability, busy periods and bookable time slots.",
     "type": "library",
     "license": "MIT",
+    "keywords": [
+        "calendar",
+        "scheduling",
+        "availability",
+        "booking",
+        "time-slots",
+        "appointments"
+    ],
     "authors": [
         {
             "name": "Eril TS Carvalho",
