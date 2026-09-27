@@ -12,7 +12,7 @@ calendar events.
 $calendar->busy([
     ['2026-10-05 10:00'],
 ]);
-````
+```
 
 When only a start datetime is supplied, Calendary uses the configured
 duration.

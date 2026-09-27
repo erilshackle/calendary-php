@@ -8,7 +8,7 @@ The primary result types are:
 Day
 Slot
 Range
-````
+```
 
 Each implements the `Result` contract and supports:
 

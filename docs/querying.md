@@ -4,7 +4,7 @@ Calendar resolution begins with:
 
 ```php
 $query = $calendar->query();
-````
+```
 
 Queries do not modify the underlying calendar definition.
 

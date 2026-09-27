@@ -8,7 +8,7 @@ This page provides a quick reference for Calendary's public API.
 
 ```php
 Calendary::load(array $schedule): Calendary
-````
+```
 
 Creates a calendar from weekly and date-specific availability.
 
