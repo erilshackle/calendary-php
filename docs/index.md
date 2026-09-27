@@ -9,6 +9,8 @@ the periods when it is already occupied, and query the resulting calendar.
 ```php
 use Eril\Calendary\Calendary;
 
+// Loading your Availabilities
+
 $calendar = Calendary::load([
     'weekly' => [
         1 => [['09:00', '12:00'], ['14:00', '18:00']],
@@ -19,6 +21,8 @@ $calendar = Calendary::load([
     ],
 ]);
 
+// Rule the Schedules
+
 $calendar
     ->timezone('Atlantic/Cape_Verde')
     ->duration(60)
@@ -27,11 +31,17 @@ $calendar
         ['2026-10-05 10:00'],
     ]);
 
-$result = $calendar
-    ->query()
+// Then Query    
+
+$result = $calendar->query()
     ->available()
     ->availableSlots()
     ->between('2026-10-05', '2026-10-09');
+
+// Output your results
+
+$result->toArray();
+
 ```
 
 ## Why Calendary?
