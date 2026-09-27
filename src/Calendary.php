@@ -78,6 +78,12 @@ final class Calendary
     private ?int $interval = null;
 
     /**
+     * Break time after an period. this extends the duration, in minutes.
+     *
+     */
+    private int $breakTime = 0;
+
+    /**
      * Create an empty calendar definition.
      */
     public function __construct()
@@ -192,6 +198,37 @@ final class Calendary
         }
 
         $this->interval = $minutes;
+
+        return $this;
+    }
+
+    /**
+     * Set the break time required after a booking.
+     *
+     * Break time extends busy periods whose end is inferred from the configured
+     * slot duration, without changing the actual slot duration.
+     *
+     * For example, with a 60-minute duration and a 15-minute break time,
+     * a busy entry starting at 09:00 blocks the calendar until 10:15,
+     * while the booking itself still lasts 60 minutes.
+     *
+     * Explicit busy periods and whole-day busy entries are not extended.
+     *
+     * @param int $minutes Break time in minutes.
+     *
+     * @return self
+     *
+     * @throws InvalidArgumentException If the break time is negative.
+     */
+    public function breakTime(int $minutes): self
+    {
+        if ($minutes < 0) {
+            throw new InvalidArgumentException(
+                'Break time cannot be negative.'
+            );
+        }
+
+        $this->breakTime = $minutes;
 
         return $this;
     }
@@ -382,5 +419,15 @@ final class Calendary
     public function getInterval(): int
     {
         return $this->interval ?? $this->duration;
+    }
+
+    /**
+     * Get the configured break time in minutes.
+     *
+     * @internal
+     */
+    public function getBreakTime(): int
+    {
+        return $this->breakTime;
     }
 }

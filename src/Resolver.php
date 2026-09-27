@@ -237,8 +237,11 @@ final class Resolver
      * Supported definitions:
      *
      * - [date] blocks the complete date;
-     * - [datetime] uses the configured slot duration;
+     * - [datetime] uses the configured slot duration and break time;
      * - [start, end] defines an explicit period.
+     *
+     * Break time is only applied when the end of the busy period is inferred
+     * from the configured slot duration.
      *
      * @param array{0: string, 1?: string} $busy Busy definition.
      *
@@ -253,6 +256,7 @@ final class Resolver
             $timezone
         );
 
+        // Explicit period: [start, end]
         if (isset($busy[1])) {
             return new Period(
                 $start,
@@ -263,26 +267,22 @@ final class Resolver
             );
         }
 
-        if (
-            preg_match(
-                '/^\d{4}-\d{2}-\d{2}$/',
-                $busy[0]
-            )
-        ) {
+        // Whole day: [date]
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $busy[0])) {
             return new Period(
                 $start->setTime(0, 0),
                 $start->setTime(0, 0)->modify('+1 day')
             );
         }
 
+        // Implicit booking: [datetime]
+        $minutes = $this->calendar->getDuration()
+            + $this->calendar->getBreakTime();
+
         return new Period(
             $start,
             $start->add(
-                new DateInterval(
-                    'PT'
-                        . $this->calendar->getDuration()
-                        . 'M'
-                )
+                new DateInterval('PT' . $minutes . 'M')
             )
         );
     }
