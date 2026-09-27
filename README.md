@@ -645,3 +645,9 @@ if (!$day->isAvailable('10:00')) {
 ```
 
 This helps keep availability display and booking validation based on the same scheduling rules.
+
+---
+
+For complete usage, concepts, examples, and API details, see the [Calendary documentation](https://erilshackle.github.io/calendary-php/).
+
+Released under the [MIT License](LICENSE).
