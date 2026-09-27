@@ -1,0 +1,1970 @@
+# Calendary
+
+> Calendary is a lightweight, framework-agnostic PHP library for resolving calendar availability, busy periods and bookable time slots.
+
+Package: `eril/calendary`
+
+Namespace: `Eril\Calendary`
+
+Requirements: PHP 8.2+
+
+Repository: https://github.com/erilshackle/calendary-php
+
+Calendary does not store appointments, access databases, manage users, or provide an HTTP API.
+
+Applications provide availability and busy data. Calendary resolves that data into days and bookable time slots.
+
+---
+
+## Installation
+
+Install Calendary with Composer:
+
+```bash
+composer require eril/calendary
+```
+
+Import the main class:
+
+```php
+use Eril\Calendary\Calendary;
+```
+
+---
+
+# Mental Model
+
+Calendary separates four concepts:
+
+1. **Availability** — when a resource may accept bookings.
+2. **Slots** — possible booking times generated from availability.
+3. **Busy time** — periods that are already occupied.
+4. **Queries** — how resolved availability is retrieved and filtered.
+
+A typical flow is:
+
+```text
+Application data
+      ↓
+Normalize availability
+      ↓
+Calendary::load()
+      ↓
+Configure duration / interval / break time
+      ↓
+Add busy periods / days off / holidays
+      ↓
+Query
+      ↓
+Day / Slot / Range results
+```
+
+Calendary is a resolver, not a persistence layer.
+
+---
+
+# Quick Example
+
+```php
+use Eril\Calendary\Calendary;
+
+$calendar = Calendary::load([
+    'weekly' => [
+        1 => [['09:00', '12:00'], ['14:00', '18:00']],
+        2 => [['09:00', '18:00']],
+        3 => [['09:00', '18:00']],
+        4 => [['09:00', '18:00']],
+        5 => [['09:00', '17:00']],
+    ],
+]);
+
+$calendar
+    ->timezone('Atlantic/Cape_Verde')
+    ->duration(60)
+    ->interval(30)
+    ->breakTime(15)
+    ->busy([
+        ['2026-10-05 10:00'],
+    ]);
+
+$result = $calendar
+    ->query()
+    ->available()
+    ->availableSlots()
+    ->between('2026-10-05', '2026-10-09');
+
+$data = $result->toArray();
+```
+
+---
+
+# Availability
+
+Availability defines when a resource can potentially accept bookings.
+
+Load availability with:
+
+```php
+$calendar = Calendary::load([
+    'weekly' => [
+        // ...
+    ],
+
+    'dates' => [
+        // ...
+    ],
+]);
+```
+
+Both sections are optional.
+
+---
+
+## Weekly Availability
+
+`weekly` defines recurring weekly availability.
+
+Calendary uses ISO weekday numbers:
+
+```text
+1 = Monday
+2 = Tuesday
+3 = Wednesday
+4 = Thursday
+5 = Friday
+6 = Saturday
+7 = Sunday
+```
+
+Example:
+
+```php
+$calendar = Calendary::load([
+    'weekly' => [
+        1 => [
+            ['09:00', '12:00'],
+            ['14:00', '18:00'],
+        ],
+
+        2 => [
+            ['09:00', '18:00'],
+        ],
+
+        5 => [
+            ['09:00', '17:00'],
+        ],
+    ],
+]);
+```
+
+Monday contains two availability periods:
+
+```text
+09:00–12:00
+14:00–18:00
+```
+
+The gap from `12:00` to `14:00` is unavailable.
+
+A weekday not present in `weekly` is closed unless a date-specific availability definition overrides it.
+
+---
+
+# Date-Specific Availability
+
+Use `dates` for availability that applies to a specific calendar date.
+
+```php
+$calendar = Calendary::load([
+    'weekly' => [
+        1 => [['09:00', '18:00']],
+    ],
+
+    'dates' => [
+        '2026-10-05' => [
+            ['10:00', '14:00'],
+        ],
+    ],
+]);
+```
+
+Date-specific availability completely replaces the weekly schedule for that date.
+
+It does not merge with weekly availability.
+
+For `2026-10-05`, the effective availability above is therefore:
+
+```text
+10:00–14:00
+```
+
+not:
+
+```text
+09:00–18:00 + 10:00–14:00
+```
+
+---
+
+## Explicitly Closing a Date
+
+An empty date-specific definition closes that date:
+
+```php
+$calendar = Calendary::load([
+    'weekly' => [
+        1 => [['09:00', '18:00']],
+    ],
+
+    'dates' => [
+        '2026-10-05' => [],
+    ],
+]);
+```
+
+Even though the weekly schedule contains availability for Monday, `2026-10-05` is closed.
+
+---
+
+# Slot Duration
+
+`duration()` defines how long each generated slot lasts.
+
+```php
+$calendar->duration(60);
+```
+
+A slot starting at `09:00` therefore represents:
+
+```text
+09:00–10:00
+```
+
+For:
+
+```php
+$calendar
+    ->duration(30);
+```
+
+the slot represents:
+
+```text
+09:00–09:30
+```
+
+Duration describes the size of the generated slot.
+
+It does not define how frequently slots start.
+
+---
+
+# Slot Interval
+
+`interval()` defines the spacing between candidate slot start times.
+
+```php
+$calendar
+    ->duration(60)
+    ->interval(30);
+```
+
+Given availability:
+
+```text
+09:00–12:00
+```
+
+candidate slots start at:
+
+```text
+09:00
+09:30
+10:00
+10:30
+11:00
+```
+
+Each slot still lasts 60 minutes.
+
+Therefore:
+
+```text
+duration = size of each slot
+interval = distance between candidate start times
+```
+
+If no interval is explicitly configured, Calendary uses the configured duration as the interval.
+
+For example:
+
+```php
+$calendar->duration(60);
+```
+
+normally produces candidate starts such as:
+
+```text
+09:00
+10:00
+11:00
+```
+
+for continuous availability from `09:00` to `12:00`.
+
+`interval()` does not represent cleanup time, preparation time, or required time after a booking.
+
+Use `breakTime()` for that purpose.
+
+---
+
+# Break Time
+
+`breakTime()` defines additional unavailable time after a busy entry whose end is inferred by Calendary.
+
+```php
+$calendar
+    ->duration(60)
+    ->breakTime(15);
+```
+
+For an implicitly timed busy entry:
+
+```php
+$calendar->busy([
+    ['2026-10-05 09:00'],
+]);
+```
+
+the booking duration is:
+
+```text
+09:00–10:00
+```
+
+but the effective busy period is:
+
+```text
+09:00–10:15
+```
+
+The additional 15 minutes are unavailable for another booking.
+
+Conceptually:
+
+```text
+09:00 ───── booking ───── 10:00 ─ break ─ 10:15
+```
+
+Break time does not change the slot duration.
+
+Break time does not change the candidate slot interval.
+
+Therefore:
+
+```php
+$calendar
+    ->duration(60)
+    ->interval(15)
+    ->breakTime(15);
+```
+
+means:
+
+```text
+duration  = slots last 60 minutes
+interval  = candidate starts are 15 minutes apart
+breakTime = inferred busy bookings block 15 additional minutes
+```
+
+---
+
+# Busy Time
+
+Use `busy()` to provide periods that cannot accept bookings.
+
+```php
+$calendar->busy([
+    // ...
+]);
+```
+
+Calendary supports three forms.
+
+---
+
+## Whole-Day Busy Entry
+
+```php
+$calendar->busy([
+    ['2026-10-05'],
+]);
+```
+
+This blocks the complete date.
+
+`breakTime()` is not applied to whole-day busy entries.
+
+---
+
+## Implicitly Timed Busy Entry
+
+```php
+$calendar->busy([
+    ['2026-10-05 09:00'],
+]);
+```
+
+When only the start datetime is provided, Calendary infers the end using:
+
+```text
+duration + breakTime
+```
+
+For:
+
+```php
+$calendar
+    ->duration(60)
+    ->breakTime(15);
+```
+
+the busy period becomes:
+
+```text
+[09:00, 10:15)
+```
+
+---
+
+## Explicit Busy Period
+
+Provide both start and end when the busy period is already known:
+
+```php
+$calendar->busy([
+    [
+        '2026-10-05 09:00',
+        '2026-10-05 10:30',
+    ],
+]);
+```
+
+This blocks exactly:
+
+```text
+[09:00, 10:30)
+```
+
+Explicit periods are respected exactly as provided.
+
+`breakTime()` is not automatically added.
+
+For example:
+
+```php
+$calendar
+    ->breakTime(15)
+    ->busy([
+        [
+            '2026-10-05 09:00',
+            '2026-10-05 10:00',
+        ],
+    ]);
+```
+
+still represents:
+
+```text
+[09:00, 10:00)
+```
+
+not:
+
+```text
+[09:00, 10:15)
+```
+
+If an application wants an explicit period to include preparation or cleanup time, it should include that time in the explicit end itself.
+
+---
+
+# Busy Overlap
+
+A slot is busy when its period overlaps a busy period.
+
+Calendary uses half-open time periods:
+
+```text
+[start, end)
+```
+
+The start is included and the end is excluded.
+
+For example:
+
+```text
+busy: [09:00, 10:00)
+```
+
+A slot beginning exactly at `10:00` does not overlap that busy period.
+
+However:
+
+```text
+slot: 09:30–10:30
+busy: 09:00–10:00
+```
+
+does overlap and is therefore busy.
+
+This matters when `interval()` is smaller than `duration()`.
+
+---
+
+# Days Off
+
+Use `daysOff()` for dates explicitly marked as unavailable:
+
+```php
+$calendar->daysOff([
+    '2026-10-05',
+    '2026-10-06',
+]);
+```
+
+A day off:
+
+* has status `day_off`;
+* is unavailable;
+* contains no bookable slots.
+
+Use this when the application semantically considers the date a day off rather than merely a closed schedule.
+
+---
+
+# Holidays
+
+Use `holidays()` to block holiday dates:
+
+```php
+$calendar->holidays([
+    '2026-12-25',
+    '2027-01-01',
+]);
+```
+
+A holiday:
+
+* has status `holiday`;
+* is unavailable;
+* contains no bookable slots.
+
+Calendary does not determine public holidays automatically.
+
+The application is responsible for providing holiday dates.
+
+---
+
+# Timezones
+
+Configure the calendar timezone with:
+
+```php
+$calendar->timezone('Atlantic/Cape_Verde');
+```
+
+Calendar resolution is timezone-aware.
+
+Availability, busy periods, and queries should represent times in the intended calendar timezone.
+
+---
+
+# Querying
+
+Create a query using:
+
+```php
+$query = $calendar->query();
+```
+
+Queries resolve configured availability and busy information into result objects.
+
+---
+
+## Query One Date
+
+Use `on()`:
+
+```php
+$day = $calendar
+    ->query()
+    ->on('2026-10-05');
+```
+
+This returns the resolved day for the specified date.
+
+---
+
+## Query a Week
+
+Use `weekOf()`:
+
+```php
+$week = $calendar
+    ->query()
+    ->weekOf('2026-10-05');
+```
+
+This resolves the week containing the provided date.
+
+---
+
+## Query a Date Range
+
+Use `between()`:
+
+```php
+$range = $calendar
+    ->query()
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+Date ranges are inclusive.
+
+Therefore:
+
+```php
+->between('2026-10-05', '2026-10-09')
+```
+
+includes both October 5 and October 9.
+
+---
+
+# Available Days
+
+Use:
+
+```php
+$result = $calendar
+    ->query()
+    ->available()
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+`available()` restricts range results to days that are available.
+
+A day is available when it has at least one available slot.
+
+---
+
+# Available Slots
+
+Use:
+
+```php
+$day = $calendar
+    ->query()
+    ->availableSlots()
+    ->on('2026-10-05');
+```
+
+Only available slots are retained.
+
+This is useful when the application wants to expose only bookable times to a client or user interface.
+
+It can be combined with range queries:
+
+```php
+$result = $calendar
+    ->query()
+    ->available()
+    ->availableSlots()
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+---
+
+# Filtering by Day Status
+
+Use `status()`:
+
+```php
+$result = $calendar
+    ->query()
+    ->status('open')
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+Multiple statuses may be requested:
+
+```php
+$result = $calendar
+    ->query()
+    ->status('open', 'day_off')
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+---
+
+# Selecting Result Fields
+
+Use `select()` to restrict serialized day fields:
+
+```php
+$result = $calendar
+    ->query()
+    ->select('date', 'status')
+    ->on('2026-10-05');
+```
+
+This is useful when returning Calendary results through an API.
+
+Selection can be combined with filters:
+
+```php
+$result = $calendar
+    ->query()
+    ->status('open')
+    ->availableSlots()
+    ->select('date', 'slots')
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+---
+
+# Day Statuses
+
+Calendary uses the following day statuses.
+
+## open
+
+```text
+open
+```
+
+The date has availability and at least one slot is available.
+
+## closed
+
+```text
+closed
+```
+
+No availability schedule applies to the date.
+
+## full
+
+```text
+full
+```
+
+Availability exists, but every generated slot is busy.
+
+## day_off
+
+```text
+day_off
+```
+
+The date was explicitly blocked with `daysOff()`.
+
+## holiday
+
+```text
+holiday
+```
+
+The date was explicitly blocked with `holidays()`.
+
+---
+
+# Slot Statuses
+
+Slots use:
+
+```text
+available
+busy
+```
+
+An available slot does not overlap any busy period.
+
+A busy slot overlaps a configured busy period.
+
+---
+
+# Results
+
+Calendary provides result objects for resolved calendar data.
+
+The main result concepts are:
+
+```text
+Day
+Slot
+Range
+```
+
+Result objects implement:
+
+```php
+Eril\Calendary\Contracts\Result
+```
+
+and support:
+
+```php
+$result->toArray();
+$result->toJson();
+```
+
+They are also JSON serializable.
+
+---
+
+# Array Output
+
+Convert a result to an array:
+
+```php
+$data = $result->toArray();
+```
+
+This is appropriate for application logic, API responses, templates, or further transformation.
+
+---
+
+# JSON Output
+
+Serialize directly to JSON:
+
+```php
+$json = $result->toJson();
+```
+
+JSON flags may be provided:
+
+```php
+$json = $result->toJson(
+    JSON_PRETTY_PRINT
+);
+```
+
+---
+
+# Checking a Requested Booking Time
+
+Do not trust availability previously sent to a frontend as permanent availability.
+
+Availability may change between displaying a slot and receiving a booking request.
+
+Resolve the date again on the backend:
+
+```php
+$day = $calendar
+    ->query()
+    ->on('2026-10-05');
+
+if (!$day->isAvailable('10:00')) {
+    throw new DomainException(
+        'The requested time is not available.'
+    );
+}
+```
+
+The application remains responsible for persistence-level concurrency protection when creating the actual booking.
+
+Calendary resolves availability; it does not lock database rows or create appointments.
+
+---
+
+# Adapting Application Data to Calendary
+
+Calendary intentionally does not know how the consuming application stores schedules, appointments, professionals, rooms, services, or other resources.
+
+When integrating Calendary into an existing project, first inspect the application's data model and map its scheduling concepts into Calendary's expected input.
+
+Do not require the application to rename database columns or restructure its domain around Calendary.
+
+Instead, create a small normalization layer between the application and Calendary.
+
+The general flow is:
+
+```text
+Application data
+      ↓
+Understand the application's scheduling semantics
+      ↓
+Map fields to Calendary concepts
+      ↓
+Normalize values
+      ↓
+Calendary::load(...)
+      ↓
+Configure calendar rules
+      ↓
+busy() / daysOff() / holidays()
+      ↓
+Query
+```
+
+## Mapping Existing Application Fields
+
+Field names are application-specific.
+
+For example, an application might store availability as:
+
+```text
+weekday
+starts_at
+ends_at
+enabled
+```
+
+Another application might use:
+
+```text
+day_of_week
+start_time
+end_time
+active
+```
+
+Another might use ORM objects such as:
+
+```php
+$schedule->day;
+$schedule->from;
+$schedule->until;
+```
+
+These can all represent the same Calendary concept.
+
+The integration code should map by meaning, not by field name.
+
+For example:
+
+```text
+Application concept       Calendary concept
+-------------------------------------------------
+weekday                    weekly key
+start time                 availability start
+end time                   availability end
+special date schedule      dates[date]
+booking duration           duration()
+slot start frequency       interval()
+post-booking buffer        breakTime()
+existing appointment       busy()
+day off                    daysOff()
+holiday                    holidays()
+```
+
+Before generating integration code, determine what each application field actually means.
+
+Do not assume that a field named `interval`, `duration`, `break`, or similar has the same semantics as the Calendary method with a similar name.
+
+---
+
+## Normalizing Weekly Availability
+
+Suppose an application returns:
+
+```php
+$schedules = [
+    [
+        'day_of_week' => 1,
+        'start_time' => '09:00:00',
+        'end_time' => '12:00:00',
+        'active' => true,
+    ],
+    [
+        'day_of_week' => 1,
+        'start_time' => '14:00:00',
+        'end_time' => '18:00:00',
+        'active' => true,
+    ],
+    [
+        'day_of_week' => 2,
+        'start_time' => '09:00:00',
+        'end_time' => '18:00:00',
+        'active' => true,
+    ],
+];
+```
+
+Calendary expects:
+
+```php
+[
+    'weekly' => [
+        1 => [
+            ['09:00', '12:00'],
+            ['14:00', '18:00'],
+        ],
+        2 => [
+            ['09:00', '18:00'],
+        ],
+    ],
+]
+```
+
+The application can normalize the rows:
+
+```php
+$weekly = [];
+
+foreach ($schedules as $schedule) {
+    if (!$schedule['active']) {
+        continue;
+    }
+
+    $weekly[$schedule['day_of_week']][] = [
+        substr($schedule['start_time'], 0, 5),
+        substr($schedule['end_time'], 0, 5),
+    ];
+}
+
+$calendar = Calendary::load([
+    'weekly' => $weekly,
+]);
+```
+
+The exact mapping code depends on the application's data structures.
+
+Calendary does not prescribe how this normalization must be implemented.
+
+---
+
+## Normalize Weekday Numbering
+
+Calendary uses ISO weekday numbers:
+
+```text
+1 = Monday
+2 = Tuesday
+3 = Wednesday
+4 = Thursday
+5 = Friday
+6 = Saturday
+7 = Sunday
+```
+
+Do not assume the application uses the same convention.
+
+For example, an application may use:
+
+```text
+0 = Sunday
+1 = Monday
+...
+6 = Saturday
+```
+
+In that case, normalize before calling Calendary:
+
+```php
+$isoDay = $applicationDay === 0
+    ? 7
+    : $applicationDay;
+```
+
+Then:
+
+```php
+$weekly[$isoDay][] = [
+    $start,
+    $end,
+];
+```
+
+When generating integration code for an existing project, inspect the application's weekday convention first.
+
+---
+
+## Normalizing Date Overrides
+
+Suppose an application stores exceptional schedules:
+
+```php
+$exceptions = [
+    [
+        'date' => '2026-10-05',
+        'start_time' => '10:00:00',
+        'end_time' => '14:00:00',
+    ],
+];
+```
+
+Normalize them into:
+
+```php
+$dates = [];
+
+foreach ($exceptions as $exception) {
+    $dates[$exception['date']][] = [
+        substr($exception['start_time'], 0, 5),
+        substr($exception['end_time'], 0, 5),
+    ];
+}
+```
+
+Then:
+
+```php
+$calendar = Calendary::load([
+    'weekly' => $weekly,
+    'dates' => $dates,
+]);
+```
+
+Remember that `dates[date]` completely replaces the weekly schedule for that date.
+
+If the application's exception means that the date is explicitly closed, normalize it as:
+
+```php
+$dates['2026-10-05'] = [];
+```
+
+---
+
+## Normalizing Existing Appointments
+
+Existing appointments normally become busy periods.
+
+Suppose the application provides:
+
+```php
+$appointments = [
+    [
+        'starts_at' => '2026-10-05 09:00:00',
+    ],
+    [
+        'starts_at' => '2026-10-05 11:00:00',
+    ],
+];
+```
+
+If every appointment uses Calendary's configured `duration()` and `breakTime()`, normalize them as start-only busy entries:
+
+```php
+$busy = array_map(
+    fn(array $appointment) => [
+        $appointment['starts_at'],
+    ],
+    $appointments
+);
+
+$calendar->busy($busy);
+```
+
+Calendary will infer each busy end using:
+
+```text
+duration + breakTime
+```
+
+---
+
+## Appointments with Their Own Duration
+
+An application may store a duration for each appointment:
+
+```php
+$appointments = [
+    [
+        'starts_at' => '2026-10-05 09:00:00',
+        'duration_minutes' => 45,
+    ],
+    [
+        'starts_at' => '2026-10-05 11:00:00',
+        'duration_minutes' => 90,
+    ],
+];
+```
+
+In this case, calculate explicit busy periods in the application:
+
+```php
+$busy = [];
+
+foreach ($appointments as $appointment) {
+    $start = new DateTimeImmutable(
+        $appointment['starts_at']
+    );
+
+    $end = $start->modify(
+        '+' . $appointment['duration_minutes'] . ' minutes'
+    );
+
+    $busy[] = [
+        $start->format('Y-m-d H:i:s'),
+        $end->format('Y-m-d H:i:s'),
+    ];
+}
+
+$calendar->busy($busy);
+```
+
+These are explicit busy periods.
+
+Therefore Calendary will not automatically add `breakTime()`.
+
+If the application's business rules require a post-booking break for these appointments, include it while calculating the explicit end:
+
+```php
+$blockedMinutes =
+    $appointment['duration_minutes']
+    + $breakMinutes;
+```
+
+Then calculate the explicit end using `$blockedMinutes`.
+
+---
+
+## Mapping ORM Objects
+
+Calendary does not require arrays to originate directly from a database.
+
+For ORM entities:
+
+```php
+foreach ($professional->schedules as $schedule) {
+    if (!$schedule->active) {
+        continue;
+    }
+
+    $weekly[$schedule->weekday][] = [
+        $schedule->start_time,
+        $schedule->end_time,
+    ];
+}
+```
+
+For collection APIs:
+
+```php
+$busy = $appointments
+    ->map(fn($appointment) => [
+        $appointment->starts_at->format('Y-m-d H:i:s'),
+    ])
+    ->all();
+```
+
+The specific ORM is irrelevant to Calendary.
+
+Use the conventions already present in the consuming application.
+
+Do not introduce a new repository, DTO, service, or abstraction solely because Calendary is being integrated unless that abstraction is useful to the application itself.
+
+---
+
+## Mapping Configuration Values
+
+Applications may already store scheduling configuration.
+
+For example:
+
+```php
+$professional->appointment_duration;
+$professional->slot_interval;
+$professional->break_minutes;
+```
+
+These may map to:
+
+```php
+$calendar
+    ->duration($professional->appointment_duration)
+    ->interval($professional->slot_interval)
+    ->breakTime($professional->break_minutes);
+```
+
+However, verify the semantics first.
+
+For example, if an application field called:
+
+```text
+appointment_interval
+```
+
+actually means:
+
+```text
+"15 minutes must pass after every appointment"
+```
+
+then it should map to:
+
+```php
+->breakTime(15)
+```
+
+not:
+
+```php
+->interval(15)
+```
+
+Field names alone are not sufficient to determine the mapping.
+
+---
+
+## When Generating Integration Code
+
+When an AI is asked to integrate Calendary into an existing project:
+
+1. Inspect the project's existing schedule and appointment structures when they are available.
+2. Identify which fields represent recurring availability, date exceptions, booking duration, candidate start frequency, breaks, busy periods, days off, and holidays.
+3. Determine the application's weekday numbering and timezone conventions.
+4. Reuse existing repositories, models, services, collections, and date utilities where appropriate.
+5. Normalize application data into Calendary's input format.
+6. Keep application-specific mapping outside Calendary.
+7. Pass only normalized scheduling data to Calendary.
+8. Do not invent database fields or application concepts that were not provided.
+9. If a required semantic distinction cannot be determined from the project, ask the developer rather than guessing.
+
+The objective is not to make the application conform to Calendary.
+
+The objective is to adapt the application's existing scheduling model into Calendary's small, predictable input format.
+
+
+# Database Integration
+
+Calendary has no database dependency.
+
+Do not pass ORM models or database-specific objects directly as calendar configuration.
+
+Instead:
+
+```text
+Database / ORM
+      ↓
+Application repository/service
+      ↓
+Normalize into arrays
+      ↓
+Calendary
+```
+
+For example, application schedule rows:
+
+```php
+$schedules = [
+    [
+        'weekday' => 1,
+        'start' => '09:00',
+        'end' => '12:00',
+    ],
+    [
+        'weekday' => 1,
+        'start' => '14:00',
+        'end' => '18:00',
+    ],
+];
+```
+
+may be normalized into:
+
+```php
+$weekly = [];
+
+foreach ($schedules as $schedule) {
+    $weekly[$schedule['weekday']][] = [
+        $schedule['start'],
+        $schedule['end'],
+    ];
+}
+```
+
+and then:
+
+```php
+$calendar = Calendary::load([
+    'weekly' => $weekly,
+]);
+```
+
+Existing appointments may similarly be normalized into `busy()` definitions.
+
+For appointments that use the same configured duration:
+
+```php
+$busy = [
+    ['2026-10-05 09:00'],
+    ['2026-10-05 11:00'],
+];
+
+$calendar->busy($busy);
+```
+
+For appointments whose end is already known:
+
+```php
+$busy = [
+    [
+        '2026-10-05 09:00',
+        '2026-10-05 10:30',
+    ],
+];
+
+$calendar->busy($busy);
+```
+
+Remember that explicit busy periods are not automatically extended by `breakTime()`.
+
+If the application wants the break included in an explicit period, calculate the desired end before passing it to Calendary.
+
+---
+
+# Translating User Intent into Calendary
+
+When generating Calendary code from natural-language requirements, map the user's intent to the following concepts.
+
+## Working Hours
+
+User intent:
+
+```text
+"The resource works Monday from 09:00 to 17:00."
+```
+
+Use:
+
+```php
+Calendary::load([
+    'weekly' => [
+        1 => [['09:00', '17:00']],
+    ],
+]);
+```
+
+---
+
+## Split Working Hours
+
+User intent:
+
+```text
+"Monday from 09:00 to 12:00 and 14:00 to 18:00."
+```
+
+Use:
+
+```php
+'weekly' => [
+    1 => [
+        ['09:00', '12:00'],
+        ['14:00', '18:00'],
+    ],
+]
+```
+
+Do not represent the lunch break as busy time when the resource simply has no availability during that period.
+
+---
+
+## Different Hours on One Date
+
+User intent:
+
+```text
+"On October 5, use 10:00 to 14:00 instead of the normal Monday schedule."
+```
+
+Use:
+
+```php
+'dates' => [
+    '2026-10-05' => [
+        ['10:00', '14:00'],
+    ],
+]
+```
+
+Date-specific availability replaces the weekly definition.
+
+---
+
+## Close One Specific Date
+
+User intent:
+
+```text
+"The resource normally works Mondays but October 5 is closed."
+```
+
+Use:
+
+```php
+'dates' => [
+    '2026-10-05' => [],
+]
+```
+
+---
+
+## Booking Duration
+
+User intent:
+
+```text
+"Appointments last 45 minutes."
+```
+
+Use:
+
+```php
+$calendar->duration(45);
+```
+
+---
+
+## Candidate Start Frequency
+
+User intent:
+
+```text
+"Appointments may start every 15 minutes."
+```
+
+Use:
+
+```php
+$calendar->interval(15);
+```
+
+Do not use `breakTime()` for this.
+
+---
+
+## Time Required After a Booking
+
+User intent:
+
+```text
+"Appointments last 60 minutes and require 15 minutes afterward."
+```
+
+Use:
+
+```php
+$calendar
+    ->duration(60)
+    ->breakTime(15);
+```
+
+Do not change `duration()` to 75 unless the application actually considers the appointment itself to last 75 minutes.
+
+---
+
+## Duration, Interval and Break Together
+
+User intent:
+
+```text
+"Appointments last one hour, may start every 15 minutes, and require a 15-minute break afterward."
+```
+
+Use:
+
+```php
+$calendar
+    ->duration(60)
+    ->interval(15)
+    ->breakTime(15);
+```
+
+These settings are independent.
+
+---
+
+## Existing Booking
+
+User intent:
+
+```text
+"There is already a booking at 10:00."
+```
+
+If it uses the configured duration:
+
+```php
+$calendar->busy([
+    ['2026-10-05 10:00'],
+]);
+```
+
+Calendary will infer its end using `duration + breakTime`.
+
+---
+
+## Known Busy Period
+
+User intent:
+
+```text
+"The resource is unavailable from 10:20 to 11:40."
+```
+
+Use:
+
+```php
+$calendar->busy([
+    [
+        '2026-10-05 10:20',
+        '2026-10-05 11:40',
+    ],
+]);
+```
+
+Use explicit busy periods when the actual start and end are already known.
+
+---
+
+## Entire Date Unavailable
+
+User intent:
+
+```text
+"The resource is unavailable all day on October 5."
+```
+
+Depending on application semantics, use:
+
+```php
+$calendar->busy([
+    ['2026-10-05'],
+]);
+```
+
+or, when it is specifically a day off:
+
+```php
+$calendar->daysOff([
+    '2026-10-05',
+]);
+```
+
+or, when it is a holiday:
+
+```php
+$calendar->holidays([
+    '2026-10-05',
+]);
+```
+
+Choose based on the meaning of the date in the application.
+
+---
+
+## Only Bookable Times
+
+User intent:
+
+```text
+"Give me only times that can currently be booked."
+```
+
+Use:
+
+```php
+$result = $calendar
+    ->query()
+    ->availableSlots()
+    ->on('2026-10-05');
+```
+
+For multiple dates:
+
+```php
+$result = $calendar
+    ->query()
+    ->available()
+    ->availableSlots()
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+```
+
+---
+
+## API-Friendly Result
+
+User intent:
+
+```text
+"Return only the date and available slots."
+```
+
+Use:
+
+```php
+$result = $calendar
+    ->query()
+    ->availableSlots()
+    ->select('date', 'slots')
+    ->between(
+        '2026-10-05',
+        '2026-10-09'
+    );
+
+$data = $result->toArray();
+```
+
+---
+
+# Choosing the Correct Calendary Feature
+
+Use this mapping when interpreting application requirements:
+
+```text
+Recurring working hours
+→ weekly
+
+Special schedule for a particular date
+→ dates
+
+Explicitly close a normally available date
+→ dates[date] = []
+
+Length of a booking slot
+→ duration()
+
+Frequency of candidate start times
+→ interval()
+
+Additional blocked time after inferred bookings
+→ breakTime()
+
+Existing appointment or occupied time
+→ busy()
+
+Explicit day off
+→ daysOff()
+
+Holiday
+→ holidays()
+
+One resolved date
+→ query()->on()
+
+Week containing a date
+→ query()->weekOf()
+
+Inclusive date range
+→ query()->between()
+
+Only available days
+→ available()
+
+Only available slots
+→ availableSlots()
+
+Filter day statuses
+→ status()
+
+Restrict serialized fields
+→ select()
+```
+
+---
+
+# Important Distinctions
+
+## Availability vs Busy Time
+
+Availability answers:
+
+```text
+"When could this resource potentially accept bookings?"
+```
+
+Busy time answers:
+
+```text
+"Which parts of that availability are already occupied?"
+```
+
+Do not build normal working hours using `busy()`.
+
+Do not represent existing appointments by removing them from the weekly schedule.
+
+---
+
+## Date Override vs Day Off
+
+Use a date override when the resource has a special schedule:
+
+```php
+'dates' => [
+    '2026-10-05' => [
+        ['10:00', '14:00'],
+    ],
+]
+```
+
+Use an empty date override when the scheduling configuration specifically says the date is closed:
+
+```php
+'dates' => [
+    '2026-10-05' => [],
+]
+```
+
+Use `daysOff()` when the application wants the date semantically represented as a day off:
+
+```php
+$calendar->daysOff([
+    '2026-10-05',
+]);
+```
+
+The resulting status is different.
+
+---
+
+## Interval vs Break Time
+
+These concepts must not be confused.
+
+```text
+interval
+= candidate start spacing
+
+breakTime
+= additional unavailable time after an inferred busy booking
+```
+
+Example:
+
+```php
+$calendar
+    ->duration(60)
+    ->interval(15)
+    ->breakTime(15);
+```
+
+does not mean bookings last 90 minutes.
+
+It means:
+
+```text
+slot duration:       60 minutes
+candidate frequency: 15 minutes
+post-booking block:  15 minutes
+```
+
+---
+
+## Explicit vs Inferred Busy Periods
+
+This:
+
+```php
+['2026-10-05 09:00']
+```
+
+asks Calendary to infer the end.
+
+Therefore `duration()` and `breakTime()` participate in resolution.
+
+This:
+
+```php
+[
+    '2026-10-05 09:00',
+    '2026-10-05 10:00',
+]
+```
+
+already specifies the end.
+
+Calendary respects that exact period.
+
+---
+
+# Application Responsibilities
+
+Calendary does not:
+
+* query databases;
+* save appointments;
+* prevent database race conditions;
+* authenticate users;
+* authorize bookings;
+* send notifications;
+* determine public holidays automatically;
+* expose HTTP endpoints;
+* depend on an ORM;
+* depend on a PHP framework.
+
+The consuming application is responsible for those concerns.
+
+Calendary should receive already-normalized scheduling data and return resolved calendar availability.
+
+---
+
+# Recommended Booking Flow
+
+A typical booking application should:
+
+```text
+1. Load the resource availability.
+2. Load current busy periods.
+3. Build Calendary.
+4. Query available slots.
+5. Show available slots to the user.
+6. Receive the requested booking time.
+7. Reload current busy data.
+8. Resolve availability again.
+9. Verify the requested time is still available.
+10. Persist the booking using appropriate database concurrency protection.
+```
+
+Do not assume that a slot shown earlier is still available when the booking request arrives.
+
+---
+
+# Public Documentation
+
+Getting Started:
+https://github.com/erilshackle/calendary-php/blob/main/docs/getting-started.md
+
+Availability:
+https://github.com/erilshackle/calendary-php/blob/main/docs/availability.md
+
+Busy Time:
+https://github.com/erilshackle/calendary-php/blob/main/docs/busy-time.md
+
+Querying:
+https://github.com/erilshackle/calendary-php/blob/main/docs/querying.md
+
+Results:
+https://github.com/erilshackle/calendary-php/blob/main/docs/results.md
+
+API Reference:
+https://github.com/erilshackle/calendary-php/blob/main/docs/api.md
+
+README:
+https://github.com/erilshackle/calendary-php/blob/main/README.md
