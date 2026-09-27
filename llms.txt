@@ -47,3 +47,4 @@ Slot statuses:
 ## Source
 
 - [README](https://github.com/erilshackle/calendary-php/blob/main/README.md): Project overview and quick start.
+- Full LLM Reference: https://github.com/erilshackle/calendary-php/blob/main/llms-full.txt
