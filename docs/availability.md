@@ -110,18 +110,14 @@ If the date is omitted, Calendary falls back to the weekly schedule.
 
 ## Resolution Precedence
 
-Calendary resolves availability in this order:
+Calendary resolves availability in the following order:
 
-```text
-holiday / day off
-        ↓
-date-specific availability
-        ↓
-weekly availability
-        ↓
-generate slots
-        ↓
-apply busy periods
+```mermaid
+flowchart TD
+    A["Holiday / Day Off"] --> B["Date-specific Availability"]
+    B --> C["Weekly Availability"]
+    C --> D["Generate Slots"]
+    D --> E["Apply Busy Periods"]
 ```
 
 A holiday or day off closes the date regardless of its weekly or
@@ -208,3 +204,5 @@ $calendar->timezone(
 ```
 
 If no timezone is configured, PHP's current default timezone is used.
+
+Visit [List of Supported Timezones](https://www.php.net/manual/en/timezones.php) to find the complete list of timezones supported by PHP.

@@ -70,10 +70,8 @@ $slot->available();
 
 Slot statuses are:
 
-```text
-available
-busy
-```
+`available`
+`busy`
 
 Constants:
 

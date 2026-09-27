@@ -91,13 +91,8 @@ Controls which Day fields are serialized.
 
 Accepted fields:
 
-```text
-date
-weekday
-available
-status
-slots
-```
+`date` `weekday` `available` `status` `slots` 
+
 
 ### `status()`
 
@@ -109,13 +104,7 @@ Filters resolved days by status.
 
 Accepted statuses:
 
-```text
-open
-closed
-full
-day_off
-holiday
-```
+`open` `closed` `full` `day_off` `holiday`
 
 ### `available()`
 

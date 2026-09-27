@@ -13,6 +13,19 @@ theme:
   name: material
   language: en
 
+  palette:
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    toggle:
+      icon: material/weather-night
+      name: Switch to dark mode
+
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to light mode
+
   features:
     - navigation.sections
     - navigation.top
@@ -25,6 +38,8 @@ theme:
 
     - content.code.copy
     - content.action.edit
+extra_css:
+  - stylesheets/extra.css
 
 plugins:
   - search
@@ -37,14 +52,18 @@ markdown_extensions:
   - admonition
   - attr_list
   - tables
-
   - pymdownx.details
 
   - pymdownx.highlight:
       anchor_linenums: true
 
   - pymdownx.inlinehilite
-  - pymdownx.superfences
+
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
   - pymdownx.tabbed:
       alternate_style: true
