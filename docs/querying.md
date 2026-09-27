@@ -114,19 +114,75 @@ $result = $calendar
     ->between($from, $to);
 ```
 
-Available fields are:
+The following fields can be selected:
 
 ```text
-date
-weekday
-available
-status
-slots
+Day
+├── date               string   "2026-10-05"
+├── weekday            int      1
+├── available          bool     true
+├── status             string   "open"
+└── slots              array
+    ├── [0]
+    │   ├── start      string   "09:00"
+    │   ├── end        string   "10:00"
+    │   ├── available  bool     true
+    │   └── status     string   "available"
+    │
+    └── [1]
+        ├── start      string   "10:00"
+        ├── end        string   "11:00"
+        ├── available  bool     false
+        └── status     string   "busy"
 ```
 
-`select()` controls serialization only.
+For example, without field selection, a serialized day may look like:
 
-It does not remove information from the `Day` object.
+```json
+{
+  "date": "2026-10-05",
+  "weekday": 1,
+  "available": true,
+  "status": "open",
+  "slots": [
+    {
+      "start": "09:00",
+      "end": "10:00",
+      "available": true,
+      "status": "available"
+    },
+    {
+      "start": "10:00",
+      "end": "11:00",
+      "available": false,
+      "status": "busy"
+    }
+  ]
+}
+```
+
+Using `select()` limits the serialized representation:
+
+```php
+$day = $calendar
+    ->query()
+    ->select('date', 'status')
+    ->on('2026-10-05');
+
+$day->toArray();
+```
+
+```json
+{
+  "date": "2026-10-05",
+  "status": "open"
+}
+```
+
+!!! note
+
+    `select()` controls serialization only. It does not remove information
+    from the `Day` object.
 
 ```php
 $day = $calendar
@@ -135,6 +191,7 @@ $day = $calendar
     ->on('2026-10-05');
 
 $day->toArray();
+
 // ['status' => 'open']
 
 $day->date();

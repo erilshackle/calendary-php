@@ -6,7 +6,7 @@ Install Calendary using Composer:
 
 ```bash
 composer require eril/calendary
-````
+```
 
 Then import the main class:
 

@@ -1,0 +1,82 @@
+/* -------------------------------------------------
+   Code blocks
+   ------------------------------------------------- */
+
+[data-md-color-scheme="default"] {
+    --calendary-code-bg: #f6f8fa;
+    --calendary-code-border: #e2e8f0;
+}
+
+[data-md-color-scheme="slate"] {
+    --calendary-code-bg: #111827;
+    --calendary-code-border: #263244;
+}
+
+.md-typeset pre > code {
+    background: var(--calendary-code-bg);
+}
+
+.md-typeset pre {
+    border: 1px solid var(--calendary-code-border);
+    border-radius: 0.5rem;
+}
+
+
+/* -------------------------------------------------
+   Light syntax
+   ------------------------------------------------- */
+
+[data-md-color-scheme="default"] .highlight .k,
+[data-md-color-scheme="default"] .highlight .kd,
+[data-md-color-scheme="default"] .highlight .kn {
+    color: #7c3aed;
+}
+
+[data-md-color-scheme="default"] .highlight .s,
+[data-md-color-scheme="default"] .highlight .s1,
+[data-md-color-scheme="default"] .highlight .s2 {
+    color: #0f766e;
+}
+
+[data-md-color-scheme="default"] .highlight .nf {
+    color: #0369a1;
+}
+
+[data-md-color-scheme="default"] .highlight .nc {
+    color: #b45309;
+}
+
+[data-md-color-scheme="default"] .highlight .c,
+[data-md-color-scheme="default"] .highlight .c1 {
+    color: #64748b;
+}
+
+
+/* -------------------------------------------------
+   Dark syntax
+   ------------------------------------------------- */
+
+[data-md-color-scheme="slate"] .highlight .k,
+[data-md-color-scheme="slate"] .highlight .kd,
+[data-md-color-scheme="slate"] .highlight .kn {
+    color: #c084fc;
+}
+
+[data-md-color-scheme="slate"] .highlight .s,
+[data-md-color-scheme="slate"] .highlight .s1,
+[data-md-color-scheme="slate"] .highlight .s2 {
+    color: #5eead4;
+}
+
+[data-md-color-scheme="slate"] .highlight .nf {
+    color: #7dd3fc;
+}
+
+[data-md-color-scheme="slate"] .highlight .nc {
+    color: #fbbf24;
+}
+
+[data-md-color-scheme="slate"] .highlight .c,
+[data-md-color-scheme="slate"] .highlight .c1 {
+    color: #94a3b8;
+}
