@@ -1,9 +1,11 @@
-site_name: Calendary
+docs_dir: docs
+site_name: Calendary PHP
 site_description: Calendar availability, busy periods and bookable time slots for PHP.
 site_author: Eril TS Carvalho
 
 repo_name: eril/calendary
 repo_url: https://github.com/eril/calendary
+# remote_branch: main
 
 theme:
   name: material
